@@ -13,22 +13,11 @@
     "url": "https://github.com/jmgomezl/hak-saucerswap-plugin/issues"
   },
   "author": "Juanma Gomez",
-  "keywords": [
-    "hedera",
-    "saucerswap",
-    "dex",
-    "agent-kit",
-    "defi",
-    "plugin"
-  ],
+  "keywords": ["hedera", "saucerswap", "dex", "agent-kit", "defi", "plugin"],
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["dist", "README.md", "LICENSE"],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
