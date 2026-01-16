@@ -1,0 +1,66 @@
+{
+  "name": "hak-saucerswap-plugin",
+  "version": "1.0.1",
+  "description": "Hedera Agent Kit plugin for SaucerSwap DEX",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jmgomezl/hak-saucerswap-plugin.git"
+  },
+  "homepage": "https://github.com/jmgomezl/hak-saucerswap-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/jmgomezl/hak-saucerswap-plugin/issues"
+  },
+  "author": "Juanma Gomez",
+  "keywords": [
+    "hedera",
+    "saucerswap",
+    "dex",
+    "agent-kit",
+    "defi",
+    "plugin"
+  ],
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "biome check .",
+    "format": "biome format . --write",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "node scripts/integration-test.mjs",
+    "dry-run:swap": "node scripts/dry-run-swap.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hedera-agent-kit": "^3.5.2",
+    "@hashgraph/sdk": "^2.54.0",
+    "axios": "^1.7.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "tsup": "^8.0.0",
+    "@biomejs/biome": "^1.9.0",
+    "vitest": "^1.0.0",
+    "@types/node": "^20.11.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
