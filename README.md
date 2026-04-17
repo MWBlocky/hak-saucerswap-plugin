@@ -70,7 +70,7 @@ const agent = new HederaAgent({
 Build a swap transaction without executing it by setting `mode` to `returnBytes`.
 
 ```ts
-import { Client } from "@hashgraph/sdk";
+import { Client } from "@hiero-ledger/sdk";
 import { saucerswapPlugin } from "@your-org/hak-saucerswap-plugin";
 
 const client = Client.forTestnet();

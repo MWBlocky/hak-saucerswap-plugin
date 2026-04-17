@@ -1,5 +1,5 @@
-import type { Client, Transaction } from "@hashgraph/sdk";
-import { AgentMode } from "hedera-agent-kit";
+import type { Client, Transaction } from "@hiero-ledger/sdk";
+import { AgentMode } from "@hashgraph/hedera-agent-kit";
 
 export const finalizeTransaction = async (
   transaction: Transaction,

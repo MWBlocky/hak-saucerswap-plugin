@@ -1,5 +1,5 @@
-import { ContractExecuteTransaction, ContractFunctionParameters } from "@hashgraph/sdk";
-import type { Tool } from "hedera-agent-kit";
+import { ContractExecuteTransaction, ContractFunctionParameters } from "@hiero-ledger/sdk";
+import type { Tool } from "@hashgraph/hedera-agent-kit";
 import { z } from "zod";
 import { createSaucerSwapClient } from "../api/client";
 import { resolveSaucerSwapConfig } from "../config";

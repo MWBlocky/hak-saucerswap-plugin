@@ -1,4 +1,4 @@
-import type { Plugin } from "hedera-agent-kit";
+import type { Plugin } from "@hashgraph/hedera-agent-kit";
 import { farmsTool } from "./tools/farms";
 import { addLiquidityTool, removeLiquidityTool } from "./tools/liquidity";
 import { poolsTool } from "./tools/pools";
