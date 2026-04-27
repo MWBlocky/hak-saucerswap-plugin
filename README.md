@@ -41,11 +41,17 @@ export SAUCERSWAP_ROUTER_V2_CONTRACT_ID=0.0.654321
 export SAUCERSWAP_WRAPPED_HBAR_TOKEN_ID=0.0.987654
 ```
 
+The SaucerSwap API requires an `x-api-key` header. Pass the key (and any other settings)
+explicitly via the agent-kit plugin config when creating the agent:
+
 ```ts
+import { saucerswapPlugin } from "hak-saucerswap-plugin";
+
 const agent = new HederaAgent({
   plugins: [saucerswapPlugin],
   config: {
     saucerswap: {
+      apiKey: import.meta.env.VITE_SAUCERSWAP_API_KEY,
       routerContractId: "0.0.123456",
       routerV2ContractId: "0.0.654321",
       wrappedHbarTokenId: "0.0.987654",
@@ -55,6 +61,9 @@ const agent = new HederaAgent({
   }
 });
 ```
+
+Get an API key from [SaucerSwap](https://www.saucerswap.finance) and store it in your host
+app's environment (e.g. `VITE_SAUCERSWAP_API_KEY` in a Vite app).
 
 ## Tools
 
