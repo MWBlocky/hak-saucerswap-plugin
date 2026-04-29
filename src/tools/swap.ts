@@ -1,5 +1,9 @@
-import { ContractExecuteTransaction, ContractFunctionParameters } from "@hiero-ledger/sdk";
-import type { Tool } from "@hashgraph/hedera-agent-kit";
+import { BaseTool, type Context } from "@hashgraph/hedera-agent-kit";
+import {
+  type Client,
+  ContractExecuteTransaction,
+  ContractFunctionParameters,
+} from "@hiero-ledger/sdk";
 import { z } from "zod";
 import { createSaucerSwapClient } from "../api/client";
 import { resolveSaucerSwapConfig } from "../config";
@@ -30,6 +34,8 @@ const swapInputSchema = z.object({
     .describe("Transaction deadline in minutes from now or a unix timestamp"),
 });
 
+type SwapInput = z.infer<typeof swapInputSchema>;
+
 const resolveDeadline = (deadlineInput: number | undefined, defaultMinutes: number): number => {
   const now = Math.floor(Date.now() / 1000);
   if (!deadlineInput) {
@@ -49,13 +55,17 @@ const expectedToSmallest = (amount: string, decimals: number): string => {
   return amount.includes(".") ? parseUnits(amount, decimals) : amount;
 };
 
-export const swapTool: Tool = {
-  method: "saucerswap_swap_tokens",
-  name: "SaucerSwap Swap Tokens",
-  description: "Execute a token swap on SaucerSwap DEX.",
-  parameters: swapInputSchema,
-  execute: async (client, context, params) => {
-    const args = swapInputSchema.parse(params);
+export class SwapTool extends BaseTool<SwapInput, SwapInput> {
+  method = "saucerswap_swap_tokens";
+  name = "SaucerSwap Swap Tokens";
+  description = "Execute a token swap on SaucerSwap DEX.";
+  parameters = swapInputSchema;
+
+  async normalizeParams(params: SwapInput, _context: Context, _client: Client): Promise<SwapInput> {
+    return swapInputSchema.parse(params);
+  }
+
+  async coreAction(args: SwapInput, context: Context, client: Client) {
     const config = resolveSaucerSwapConfig(context);
     const operatorAccountId = client?.operatorAccountId?.toString();
     const slippageTolerance = args.slippageTolerance ?? 0.5;
@@ -119,7 +129,7 @@ export const swapTool: Tool = {
         tokenIdToSolidityAddress(requireTokenId(toTokenId)),
       ];
 
-      const params = new ContractFunctionParameters()
+      const fnParams = new ContractFunctionParameters()
         .addUint256(amountInSmallest)
         .addUint256(minOutSmallest)
         .addAddressArray(path)
@@ -129,7 +139,7 @@ export const swapTool: Tool = {
       const transaction = new ContractExecuteTransaction()
         .setContractId(contractIdFromString(routerContractId))
         .setGas(config.gasLimit)
-        .setFunction("swapExactTokensForTokens", params);
+        .setFunction("swapExactTokensForTokens", fnParams);
 
       return await finalizeTransaction(transaction, client, context, {
         estimatedOutput: quote.expectedOutput,
@@ -143,5 +153,15 @@ export const swapTool: Tool = {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
-  },
-};
+  }
+
+  override async shouldSecondaryAction(_coreActionResult: unknown, _context: Context) {
+    return false;
+  }
+
+  async secondaryAction(_request: unknown, _client: Client, _context: Context) {
+    return null;
+  }
+}
+
+export const swapTool = new SwapTool();

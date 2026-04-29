@@ -1,5 +1,9 @@
-import { ContractExecuteTransaction, ContractFunctionParameters } from "@hiero-ledger/sdk";
-import type { Tool } from "@hashgraph/hedera-agent-kit";
+import { BaseTool, type Context } from "@hashgraph/hedera-agent-kit";
+import {
+  type Client,
+  ContractExecuteTransaction,
+  ContractFunctionParameters,
+} from "@hiero-ledger/sdk";
 import { z } from "zod";
 import { createSaucerSwapClient } from "../api/client";
 import { resolveSaucerSwapConfig } from "../config";
@@ -34,6 +38,9 @@ const removeLiquidityInputSchema = z.object({
   minAmountB: z.string().describe("Minimum amount of tokenB to receive"),
 });
 
+type AddLiquidityInput = z.infer<typeof addLiquidityInputSchema>;
+type RemoveLiquidityInput = z.infer<typeof removeLiquidityInputSchema>;
+
 const resolveDeadline = (defaultMinutes: number): number => {
   return Math.floor(Date.now() / 1000) + defaultMinutes * 60;
 };
@@ -49,13 +56,21 @@ const resolveRouterContract = (config: ReturnType<typeof resolveSaucerSwapConfig
   return routerContractId;
 };
 
-export const addLiquidityTool: Tool = {
-  method: "saucerswap_add_liquidity",
-  name: "SaucerSwap Add Liquidity",
-  description: "Add liquidity to a SaucerSwap pool.",
-  parameters: addLiquidityInputSchema,
-  execute: async (client, context, params) => {
-    const args = addLiquidityInputSchema.parse(params);
+export class AddLiquidityTool extends BaseTool<AddLiquidityInput, AddLiquidityInput> {
+  method = "saucerswap_add_liquidity";
+  name = "SaucerSwap Add Liquidity";
+  description = "Add liquidity to a SaucerSwap pool.";
+  parameters = addLiquidityInputSchema;
+
+  async normalizeParams(
+    params: AddLiquidityInput,
+    _context: Context,
+    _client: Client,
+  ): Promise<AddLiquidityInput> {
+    return addLiquidityInputSchema.parse(params);
+  }
+
+  async coreAction(args: AddLiquidityInput, context: Context, client: Client) {
     const config = resolveSaucerSwapConfig(context);
     const operatorAccountId = client?.operatorAccountId?.toString();
     const slippageTolerance = args.slippageTolerance ?? 0.5;
@@ -96,7 +111,7 @@ export const addLiquidityTool: Tool = {
       const deadline = resolveDeadline(config.deadlineMinutes);
       const toAddress = accountIdToSolidityAddress(operatorAccountId);
 
-      const params = new ContractFunctionParameters()
+      const fnParams = new ContractFunctionParameters()
         .addAddress(tokenIdToSolidityAddress(requireTokenId(tokenAId)))
         .addAddress(tokenIdToSolidityAddress(requireTokenId(tokenBId)))
         .addUint256(amountADesired)
@@ -109,7 +124,7 @@ export const addLiquidityTool: Tool = {
       const transaction = new ContractExecuteTransaction()
         .setContractId(contractIdFromString(routerContractId))
         .setGas(config.gasLimit)
-        .setFunction("addLiquidity", params);
+        .setFunction("addLiquidity", fnParams);
 
       return await finalizeTransaction(transaction, client, context, {
         amountADesired,
@@ -123,16 +138,32 @@ export const addLiquidityTool: Tool = {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
-  },
-};
+  }
 
-export const removeLiquidityTool: Tool = {
-  method: "saucerswap_remove_liquidity",
-  name: "SaucerSwap Remove Liquidity",
-  description: "Remove liquidity from a SaucerSwap pool.",
-  parameters: removeLiquidityInputSchema,
-  execute: async (client, context, params) => {
-    const args = removeLiquidityInputSchema.parse(params);
+  override async shouldSecondaryAction(_coreActionResult: unknown, _context: Context) {
+    return false;
+  }
+
+  async secondaryAction(_request: unknown, _client: Client, _context: Context) {
+    return null;
+  }
+}
+
+export class RemoveLiquidityTool extends BaseTool<RemoveLiquidityInput, RemoveLiquidityInput> {
+  method = "saucerswap_remove_liquidity";
+  name = "SaucerSwap Remove Liquidity";
+  description = "Remove liquidity from a SaucerSwap pool.";
+  parameters = removeLiquidityInputSchema;
+
+  async normalizeParams(
+    params: RemoveLiquidityInput,
+    _context: Context,
+    _client: Client,
+  ): Promise<RemoveLiquidityInput> {
+    return removeLiquidityInputSchema.parse(params);
+  }
+
+  async coreAction(args: RemoveLiquidityInput, context: Context, client: Client) {
     const config = resolveSaucerSwapConfig(context);
     const operatorAccountId = client?.operatorAccountId?.toString();
 
@@ -178,7 +209,7 @@ export const removeLiquidityTool: Tool = {
       const deadline = resolveDeadline(config.deadlineMinutes);
       const toAddress = accountIdToSolidityAddress(operatorAccountId);
 
-      const params = new ContractFunctionParameters()
+      const fnParams = new ContractFunctionParameters()
         .addAddress(tokenIdToSolidityAddress(requireTokenId(tokenAId)))
         .addAddress(tokenIdToSolidityAddress(requireTokenId(tokenBId)))
         .addUint256(lpAmount)
@@ -190,7 +221,7 @@ export const removeLiquidityTool: Tool = {
       const transaction = new ContractExecuteTransaction()
         .setContractId(contractIdFromString(routerContractId))
         .setGas(config.gasLimit)
-        .setFunction("removeLiquidity", params);
+        .setFunction("removeLiquidity", fnParams);
 
       return await finalizeTransaction(transaction, client, context, {
         lpAmount,
@@ -203,5 +234,16 @@ export const removeLiquidityTool: Tool = {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
-  },
-};
+  }
+
+  override async shouldSecondaryAction(_coreActionResult: unknown, _context: Context) {
+    return false;
+  }
+
+  async secondaryAction(_request: unknown, _client: Client, _context: Context) {
+    return null;
+  }
+}
+
+export const addLiquidityTool = new AddLiquidityTool();
+export const removeLiquidityTool = new RemoveLiquidityTool();
