@@ -33,15 +33,18 @@ const agent = new HederaAgent({
 
 ## Configuration
 
-Provide router contract IDs and (optionally) token aliases via environment or plugin config.
+Provide the API key, router contract IDs and (optionally) token aliases via environment or
+plugin config. See [`.env.example`](./.env.example) for the full list of supported variables.
 
 ```bash
+export SAUCERSWAP_API_KEY=your_saucerswap_api_key
 export SAUCERSWAP_ROUTER_CONTRACT_ID=0.0.123456
 export SAUCERSWAP_ROUTER_V2_CONTRACT_ID=0.0.654321
 export SAUCERSWAP_WRAPPED_HBAR_TOKEN_ID=0.0.987654
 ```
 
-The SaucerSwap API requires an `x-api-key` header. Pass the key (and any other settings)
+The SaucerSwap API requires an `x-api-key` header. The plugin reads it from
+`SAUCERSWAP_API_KEY` by default; alternatively pass the key (and any other settings)
 explicitly via the agent-kit plugin config when creating the agent:
 
 ```ts

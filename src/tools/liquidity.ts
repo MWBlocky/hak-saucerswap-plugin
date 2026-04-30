@@ -1,8 +1,14 @@
-import { BaseTool, type Context } from "@hashgraph/hedera-agent-kit";
+import {
+  BaseTool,
+  type Context,
+  handleTransaction,
+  type RawTransactionResponse,
+} from "@hashgraph/hedera-agent-kit";
 import {
   type Client,
   ContractExecuteTransaction,
   ContractFunctionParameters,
+  Transaction,
 } from "@hiero-ledger/sdk";
 import { z } from "zod";
 import { createSaucerSwapClient } from "../api/client";
@@ -15,7 +21,6 @@ import {
   requireTokenId,
   tokenIdToSolidityAddress,
 } from "../utils/tokens";
-import { finalizeTransaction } from "../utils/transactions";
 import { parseUnits } from "../utils/units";
 
 const addLiquidityInputSchema = z.object({
@@ -40,6 +45,35 @@ const removeLiquidityInputSchema = z.object({
 
 type AddLiquidityInput = z.infer<typeof addLiquidityInputSchema>;
 type RemoveLiquidityInput = z.infer<typeof removeLiquidityInputSchema>;
+
+type AddLiquidityExtras = {
+  amountADesired: string;
+  amountBDesired: string;
+  amountAMin: string;
+  amountBMin: string;
+};
+
+type RemoveLiquidityExtras = {
+  lpAmount: string;
+  minAmountA: string;
+  minAmountB: string;
+};
+
+type LiquidityCorePayload<E> = {
+  transaction: Transaction;
+  extras: E;
+};
+
+const isLiquidityCorePayload = (
+  value: unknown,
+): value is LiquidityCorePayload<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && "transaction" in value;
+
+const addLiquidityPostProcess = (response: RawTransactionResponse) =>
+  `SaucerSwap add liquidity submitted. Status: ${response.status}. Transaction ID: ${response.transactionId}`;
+
+const removeLiquidityPostProcess = (response: RawTransactionResponse) =>
+  `SaucerSwap remove liquidity submitted. Status: ${response.status}. Transaction ID: ${response.transactionId}`;
 
 const resolveDeadline = (defaultMinutes: number): number => {
   return Math.floor(Date.now() / 1000) + defaultMinutes * 60;
@@ -111,7 +145,7 @@ export class AddLiquidityTool extends BaseTool<AddLiquidityInput, AddLiquidityIn
       const deadline = resolveDeadline(config.deadlineMinutes);
       const toAddress = accountIdToSolidityAddress(operatorAccountId);
 
-      const fnParams = new ContractFunctionParameters()
+      const params = new ContractFunctionParameters()
         .addAddress(tokenIdToSolidityAddress(requireTokenId(tokenAId)))
         .addAddress(tokenIdToSolidityAddress(requireTokenId(tokenBId)))
         .addUint256(amountADesired)
@@ -124,14 +158,13 @@ export class AddLiquidityTool extends BaseTool<AddLiquidityInput, AddLiquidityIn
       const transaction = new ContractExecuteTransaction()
         .setContractId(contractIdFromString(routerContractId))
         .setGas(config.gasLimit)
-        .setFunction("addLiquidity", fnParams);
+        .setFunction("addLiquidity", params);
 
-      return await finalizeTransaction(transaction, client, context, {
-        amountADesired,
-        amountBDesired,
-        amountAMin,
-        amountBMin,
-      });
+      const payload: LiquidityCorePayload<AddLiquidityExtras> = {
+        transaction,
+        extras: { amountADesired, amountBDesired, amountAMin, amountBMin },
+      };
+      return payload;
     } catch (error) {
       return {
         success: false,
@@ -140,12 +173,22 @@ export class AddLiquidityTool extends BaseTool<AddLiquidityInput, AddLiquidityIn
     }
   }
 
-  override async shouldSecondaryAction(_coreActionResult: unknown, _context: Context) {
-    return false;
+  override async shouldSecondaryAction(coreActionResult: unknown, _context: Context) {
+    return isLiquidityCorePayload(coreActionResult);
   }
 
-  async secondaryAction(_request: unknown, _client: Client, _context: Context) {
-    return null;
+  async secondaryAction(
+    payload: LiquidityCorePayload<AddLiquidityExtras>,
+    client: Client,
+    context: Context,
+  ) {
+    const result = await handleTransaction(
+      payload.transaction,
+      client,
+      context,
+      addLiquidityPostProcess,
+    );
+    return { ...result, ...payload.extras };
   }
 }
 
@@ -209,7 +252,7 @@ export class RemoveLiquidityTool extends BaseTool<RemoveLiquidityInput, RemoveLi
       const deadline = resolveDeadline(config.deadlineMinutes);
       const toAddress = accountIdToSolidityAddress(operatorAccountId);
 
-      const fnParams = new ContractFunctionParameters()
+      const params = new ContractFunctionParameters()
         .addAddress(tokenIdToSolidityAddress(requireTokenId(tokenAId)))
         .addAddress(tokenIdToSolidityAddress(requireTokenId(tokenBId)))
         .addUint256(lpAmount)
@@ -221,13 +264,13 @@ export class RemoveLiquidityTool extends BaseTool<RemoveLiquidityInput, RemoveLi
       const transaction = new ContractExecuteTransaction()
         .setContractId(contractIdFromString(routerContractId))
         .setGas(config.gasLimit)
-        .setFunction("removeLiquidity", fnParams);
+        .setFunction("removeLiquidity", params);
 
-      return await finalizeTransaction(transaction, client, context, {
-        lpAmount,
-        minAmountA,
-        minAmountB,
-      });
+      const payload: LiquidityCorePayload<RemoveLiquidityExtras> = {
+        transaction,
+        extras: { lpAmount, minAmountA, minAmountB },
+      };
+      return payload;
     } catch (error) {
       return {
         success: false,
@@ -236,12 +279,22 @@ export class RemoveLiquidityTool extends BaseTool<RemoveLiquidityInput, RemoveLi
     }
   }
 
-  override async shouldSecondaryAction(_coreActionResult: unknown, _context: Context) {
-    return false;
+  override async shouldSecondaryAction(coreActionResult: unknown, _context: Context) {
+    return isLiquidityCorePayload(coreActionResult);
   }
 
-  async secondaryAction(_request: unknown, _client: Client, _context: Context) {
-    return null;
+  async secondaryAction(
+    payload: LiquidityCorePayload<RemoveLiquidityExtras>,
+    client: Client,
+    context: Context,
+  ) {
+    const result = await handleTransaction(
+      payload.transaction,
+      client,
+      context,
+      removeLiquidityPostProcess,
+    );
+    return { ...result, ...payload.extras };
   }
 }
 

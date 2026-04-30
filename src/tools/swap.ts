@@ -1,8 +1,14 @@
-import { BaseTool, type Context } from "@hashgraph/hedera-agent-kit";
+import {
+  BaseTool,
+  type Context,
+  handleTransaction,
+  type RawTransactionResponse,
+} from "@hashgraph/hedera-agent-kit";
 import {
   type Client,
   ContractExecuteTransaction,
   ContractFunctionParameters,
+  Transaction,
 } from "@hiero-ledger/sdk";
 import { z } from "zod";
 import { createSaucerSwapClient } from "../api/client";
@@ -16,7 +22,6 @@ import {
   requireTokenId,
   tokenIdToSolidityAddress,
 } from "../utils/tokens";
-import { finalizeTransaction } from "../utils/transactions";
 import { parseUnits } from "../utils/units";
 
 const swapInputSchema = z.object({
@@ -35,6 +40,24 @@ const swapInputSchema = z.object({
 });
 
 type SwapInput = z.infer<typeof swapInputSchema>;
+
+type SwapExtras = {
+  estimatedOutput: string;
+  minOutput: string;
+  priceImpact: number | null;
+  route: string[];
+};
+
+type SwapCorePayload = {
+  transaction: Transaction;
+  extras: SwapExtras;
+};
+
+const isSwapCorePayload = (value: unknown): value is SwapCorePayload =>
+  typeof value === "object" && value !== null && "transaction" in value;
+
+const swapPostProcess = (response: RawTransactionResponse) =>
+  `SaucerSwap swap submitted. Status: ${response.status}. Transaction ID: ${response.transactionId}`;
 
 const resolveDeadline = (deadlineInput: number | undefined, defaultMinutes: number): number => {
   const now = Math.floor(Date.now() / 1000);
@@ -129,7 +152,7 @@ export class SwapTool extends BaseTool<SwapInput, SwapInput> {
         tokenIdToSolidityAddress(requireTokenId(toTokenId)),
       ];
 
-      const fnParams = new ContractFunctionParameters()
+      const params = new ContractFunctionParameters()
         .addUint256(amountInSmallest)
         .addUint256(minOutSmallest)
         .addAddressArray(path)
@@ -139,14 +162,18 @@ export class SwapTool extends BaseTool<SwapInput, SwapInput> {
       const transaction = new ContractExecuteTransaction()
         .setContractId(contractIdFromString(routerContractId))
         .setGas(config.gasLimit)
-        .setFunction("swapExactTokensForTokens", fnParams);
+        .setFunction("swapExactTokensForTokens", params);
 
-      return await finalizeTransaction(transaction, client, context, {
-        estimatedOutput: quote.expectedOutput,
-        minOutput: minOutSmallest,
-        priceImpact: quote.priceImpact,
-        route: quote.route,
-      });
+      const payload: SwapCorePayload = {
+        transaction,
+        extras: {
+          estimatedOutput: quote.expectedOutput,
+          minOutput: minOutSmallest,
+          priceImpact: quote.priceImpact,
+          route: quote.route,
+        },
+      };
+      return payload;
     } catch (error) {
       return {
         success: false,
@@ -155,12 +182,18 @@ export class SwapTool extends BaseTool<SwapInput, SwapInput> {
     }
   }
 
-  override async shouldSecondaryAction(_coreActionResult: unknown, _context: Context) {
-    return false;
+  override async shouldSecondaryAction(coreActionResult: unknown, _context: Context) {
+    return isSwapCorePayload(coreActionResult);
   }
 
-  async secondaryAction(_request: unknown, _client: Client, _context: Context) {
-    return null;
+  async secondaryAction(payload: SwapCorePayload, client: Client, context: Context) {
+    const result = await handleTransaction(
+      payload.transaction,
+      client,
+      context,
+      swapPostProcess,
+    );
+    return { ...result, ...payload.extras };
   }
 }
 
